@@ -1,9 +1,9 @@
 #include "HomeSpan.h"
 #include <HardwareSerial.h>
 
-bool power = 0;  //power status
+bool power = 1;  //power status
 bool comPower = 0; //stores new requested power
-int input = 1;  //stores active input
+int input = 0;  //stores active input
 int comInput = 1;  //stores new requested input
 bool receiving = 0; //used for the communication function
 bool sending = 0; //used for the communication function
@@ -75,8 +75,9 @@ void rs232receive(){
 
   String receivedType;
   String receivedData;
-
+  //LOG2("\nreading\n");
   while (Serial2.available()) {
+    LOG2("\nreading\n");
     char c = Serial2.read();
     if (c == '$') { //detected end of transmission
 
@@ -125,6 +126,9 @@ void rs232receive(){
     } else {
       // Append character to received data
       receivedData += c;
+      LOG2("\n");
+      LOG2(c);
+      LOG2("\n");
     }
   }
 
@@ -137,12 +141,9 @@ struct HomeSpanTV : Service::Television {
   //SpanCharacteristic *remoteKey = new Characteristic::RemoteKey();                // Used to receive button presses from the Remote Control widget
   SpanCharacteristic *settingsKey = new Characteristic::PowerModeSelection();  // Adds "View TV Setting" option to Selection Screen
 
-  HomeSpanTV(const char *name)
-    : Service::Television() {
+  HomeSpanTV(const char *name) : Service::Television() {
     new Characteristic::ConfiguredName(name);  // Name of TV
     Serial.printf("Configured TV: %s\n", name);
-    Serial2.print("!rs232_update_on!");
-    Serial.println(Serial2.readStringUntil('$'));
   }
 
   boolean update() override {
@@ -199,7 +200,7 @@ void loop() { //for updating status
   if((comInput != input ) || (activeID->timeVal()>60000)){                               // check time elapsed since last update and proceed only if greater than 5 seconds
     receiving = 1;
     rs232receive();
-    activeID->setVal(comInput); // Set power state
+    activeID->setVal(comInput); // Set input state
     LOG1("\n");
     LOG1("Reading and applying new source");
     LOG1("\n");
@@ -215,7 +216,7 @@ struct Volume : Service::LightBulb {       // Volume
   //SpanCharacteristic *power;
   SpanCharacteristic *level;
   
-  Volume(int pin) : Service::LightBulb(){
+  Volume() : Service::LightBulb(){
 
     //power=new Characteristic::On();     
                 
@@ -267,15 +268,14 @@ void setup() {
 
   Serial.begin(115200);
   Serial2.begin(115200, SERIAL_8N1);  // start Serial2 at 115200 8N1
+  Serial2.print("!rs232_update_on!");  //to make sure the amp is communicating everytime
 
 
-  homeSpan.enableOTA();
+
+  //homeSpan.enableOTA();
   homeSpan.begin(Category::Television, "Rotel A12MKII Ampplifier");
 
   SPAN_ACCESSORY();
-
-  // Below we define 10 different InputSource Services using different combinations
-  // of Characteristics to demonstrate how they interact and appear to the user in the Home App
 
   SpanService *hdmi1 = new Service::InputSource();
   new Characteristic::ConfiguredName("CD");
@@ -361,8 +361,6 @@ void setup() {
   new Characteristic::CurrentVisibilityState(0,true);  // ...and included in the Selection List...
   new Characteristic::TargetVisibilityState(0,true);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
 
-
-
   (new HomeSpanTV("Rotel A12MKII Amplifier"))  // Define a Television Service.  Must link in InputSources!
     ->addLink(hdmi1)
     ->addLink(hdmi2)
@@ -376,8 +374,7 @@ void setup() {
     ->addLink(hdmi10)
     ->addLink(hdmi11)
     ->addLink(hdmi12);
-}
-
+  
 ///////////////////////////////
 
 void loop() {
