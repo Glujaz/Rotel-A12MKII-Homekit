@@ -23,9 +23,6 @@ String statusSourceDetect="source";
 String statusSource="source";
 String statusVolume="vol_";
 String statusVolumeGet="volume";
-String statusVolumeMute="mute_on";
-String statusVolumeUnmute="mute_off";
-
 
 void rs232send() {
 
@@ -49,9 +46,6 @@ void rs232send() {
       if (comInput == 101) {Serial2.print(statusAction+statusPowerUnset+statusAction);Serial.println("sent command turning Amp Off");}
 
       if (comInput == 150) {Serial2.print(statusAction+statusVolume+comVolume+statusAction);Serial.print("Applied volume is ");Serial.print(comVolume);Serial.println("%");}
-      if (comInput == 151) {Serial2.print(statusAction+statusVolumeUnmute+statusAction);Serial.println("Unmuted Amp");}
-      if (comInput == 152) {Serial2.print(statusAction+statusVolumeMute+statusAction);Serial.println("Muted Amp");}
-
 
       sending == 0;
   }
@@ -228,33 +222,23 @@ struct Volume : Service::LightBulb {       // Volume
 
   boolean update(){                              // update() method
     if (level->updated()) {  //Applying Volume
-      if (comVolume>0) {
-        comInput=151;
-        rs232send();
         comInput=150;
         rs232send;
-      } else {
-      comInput=152;
-      rs232send();
       }   
     return(true);                               // return true
-    } // update
   };
 
-void loop() { //for updating status
-
-  if((comVolume != volume ) || (level->timeVal()>60000)){                               // check time elapsed since last update and proceed only if greater than 5 seconds
-    receiving = 1;
-    rs232receive();
-    level->setVal(comVolume); // Set power state
-    LOG1("\n");
-    LOG1("Reading and applying new Volume");
-    LOG1("\n");
-    volume = comVolume;
+  void loop() { //for updating status
+    if((comVolume != volume ) || (level->timeVal()>60000)){                  // check time elapsed since last update and proceed only if greater than 5 seconds
+      receiving = 1;
+      rs232receive();
+      level->setVal(comVolume); // Set power state
+      LOG1("\n");
+      LOG1("Reading and applying new Volume");
+      LOG1("\n");
+      volume = comVolume;
+    }
   }
-
-
-}
 
 
 };
@@ -373,7 +357,9 @@ void setup() {
     ->addLink(hdmi9)
     ->addLink(hdmi10)
     ->addLink(hdmi11)
-    ->addLink(hdmi12);
+    ->addLink(hdmi12)
+    ;
+}
   
 ///////////////////////////////
 
