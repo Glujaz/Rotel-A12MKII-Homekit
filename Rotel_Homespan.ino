@@ -1,10 +1,134 @@
 #include "HomeSpan.h"
-bool power = 0;  //will be used in a later version
-int input = 1;      //will be used in a later version
-unsigned long previousMillis = 0; // Stores the last time an action was performed
-const long interval = 5000;       // Interval at which to perform the action (5 seconds)
+#include <HardwareSerial.h>
+
+bool power = 0;  //power status
+bool comPower = 0; //stores new requested power
+int input = 1;  //stores active input
+int comInput = 1;  //stores new requested input
+bool receiving = 0; //used for the communication function
+bool sending = 0; //used for the communication function
+int volume = 25; //stores active volume
+int comVolume = 25;  //stores new requested volume
+
+///////////Status Commands/////////////
+String statusAction="!";
+String statusAsk="?";
+String statusPower="power";
+String statusPowerDetect="power";
+String statusPowerSet="power_on";
+String statusPowerUnset="power_off";
+String statusPowerOnGet="on";
+String statusPowerOffGet="standby";
+String statusSourceDetect="source";
+String statusSource="source";
+String statusVolume="vol_";
+String statusVolumeGet="volume";
+String statusVolumeMute="mute_on";
+String statusVolumeUnmute="mute_off";
 
 
+void rs232send() {
+
+  if(sending == 1){
+
+      //sending input request
+      if (comInput == 1) {Serial2.print(statusAction+"cd"+statusAction);}
+      if (comInput == 2) {Serial2.print(statusAction+"coax1"+statusAction);}
+      if (comInput == 3) {Serial2.print(statusAction+"coax2"+statusAction);}
+      if (comInput == 4) {Serial2.print(statusAction+"opt1"+statusAction);}
+      if (comInput == 5) {Serial2.print(statusAction+"opt2"+statusAction);}
+      if (comInput == 6) {Serial2.print(statusAction+"aux1"+statusAction);}
+      if (comInput == 7) {Serial2.print(statusAction+"aux2"+statusAction);}
+      if (comInput == 8) {Serial2.print(statusAction+"tuner"+statusAction);}
+      if (comInput == 9) {Serial2.print(statusAction+"phono"+statusAction);}
+      if (comInput == 10) {Serial2.print(statusAction+"usb"+statusAction);}
+      if (comInput == 11) {Serial2.print(statusAction+"bluetooth"+statusAction);}
+      if (comInput == 12) {Serial2.print(statusAction+"pcusb"+statusAction);}
+
+      if (comInput == 100) {Serial2.print(statusAction+statusPowerSet+statusAction);Serial.println("sent command turning Amp On");}
+      if (comInput == 101) {Serial2.print(statusAction+statusPowerUnset+statusAction);Serial.println("sent command turning Amp Off");}
+
+      if (comInput == 150) {Serial2.print(statusAction+statusVolume+comVolume+statusAction);Serial.print("Applied volume is ");Serial.print(comVolume);Serial.println("%");}
+      if (comInput == 151) {Serial2.print(statusAction+statusVolumeUnmute+statusAction);Serial.println("Unmuted Amp");}
+      if (comInput == 152) {Serial2.print(statusAction+statusVolumeMute+statusAction);Serial.println("Muted Amp");}
+
+
+      sending == 0;
+  }
+    else if (receiving == 1) {
+
+      //asking power status
+      Serial2.print(statusAction+statusPower+statusAsk);
+
+      //asking input status
+      Serial2.print(statusAction+statusSource+statusAsk);
+
+      //asking Volume status
+      Serial2.print(statusAction+statusVolumeGet+statusAsk);
+
+
+      receiving = 0;
+  }
+}
+
+void rs232receive(){
+
+  String receivedType;
+  String receivedData;
+
+  while (Serial2.available()) {
+    char c = Serial2.read();
+    if (c == '$') { //detected end of transmission
+
+    int separatorIndex = receivedData.indexOf('=');
+    if (separatorIndex != -1) {
+      receivedType = receivedData.substring(0, separatorIndex);
+      receivedData = receivedData.substring(separatorIndex + 1);
+
+      if (receivedType == statusPowerDetect) {
+        LOG1("\ndetected power status\n");
+
+        if (receivedData == statusPowerOnGet){comPower=1;}
+        if (receivedData == statusPowerOffGet){comPower=0;}
+
+      } else if (receivedType == statusSourceDetect) {
+          LOG1("\ndetected input source\n");
+
+
+          if(receivedData == "cd") {comInput=1;}
+          if(receivedData == "coax1") {comInput=2;} 
+          if(receivedData == "coax2") {comInput=3;} 
+          if(receivedData == "opt1") {comInput=4;} 
+          if(receivedData == "opt2") {comInput=5;} 
+          if(receivedData == "aux1") {comInput=6;} 
+          if(receivedData == "aux2") {comInput=7;} 
+          if(receivedData == "tuner") {comInput=8;} 
+          if(receivedData == "phono") {comInput=9;} 
+          if(receivedData == "usb") {comInput=10;} 
+          if(receivedData == "bluetooth") {comInput=11;} 
+          if(receivedData == "pc_usb") {comInput=12;} 
+
+
+      }
+      // Clear receivedData for the next message
+      LOG1("\n");
+      LOG1("received full message ");
+      LOG1("\n");
+      LOG1(receivedType);
+      LOG1(" = ");
+      LOG1(receivedData);
+      LOG1("\ncomInput is now :");
+      LOG1(comInput);
+      ;receivedData = "";
+    }
+
+    } else {
+      // Append character to received data
+      receivedData += c;
+    }
+  }
+
+}
 
 struct HomeSpanTV : Service::Television {
 
@@ -17,7 +141,7 @@ struct HomeSpanTV : Service::Television {
     : Service::Television() {
     new Characteristic::ConfiguredName(name);  // Name of TV
     Serial.printf("Configured TV: %s\n", name);
-    Serial2.print("!rs232_update_off!");
+    Serial2.print("!rs232_update_on!");
     Serial.println(Serial2.readStringUntil('$'));
   }
 
@@ -33,16 +157,9 @@ struct HomeSpanTV : Service::Television {
       LOG1("\n");
 
       if (active->getNewVal()) {
-        LOG0("Turning Amp ON.");      // Debugging statement
-        delay(1000); // Adjust delay as needed to ensure the command is sent
-        Serial2.print("!power_on!");   // send power on command
-        LOG0("sent command to turn on");
-        delay(1000); // Adjust delay as needed to ensure the command is sent
+        {comInput=100;sending=1;power=1;rs232send();}
       } else {
-        LOG0("Turning Amp OFF.");      // Debugging statement
-        delay(1000);
-        Serial2.print("!power_off!");  // send power off command
-        delay(1000); // Adjust delay as needed to ensure the command is sent
+        {comInput=101;sending=1;power=0;rs232send();}
       }
     }
 
@@ -51,106 +168,96 @@ struct HomeSpanTV : Service::Television {
       Serial2.print("!");  //to ensure cleaning any previous commands
 
       //////////////////////////////
-      if (activeID->getNewVal() == 1) {
-        Serial2.print("cd");
-      }
-      if (activeID->getNewVal() == 2) {
-        Serial2.print("coax1");
-      }
-      if (activeID->getNewVal() == 3) {
-        Serial2.print("coax2");
-      }
-      if (activeID->getNewVal() == 4) {
-        Serial2.print("opt1");
-      }
-      if (activeID->getNewVal() == 5) {
-        Serial2.print("opt2");
-      }
-      if (activeID->getNewVal() == 6) {
-        Serial2.print("aux1");
-      }
-      if (activeID->getNewVal() == 7) {
-        Serial2.print("aux2");
-      }
-      if (activeID->getNewVal() == 8) {
-        Serial2.print("tuner");
-      }
-      if (activeID->getNewVal() == 9) {
-        Serial2.print("phono");
-      }
-      if (activeID->getNewVal() == 10) {
-        Serial2.print("usb");
-      }
-      if (activeID->getNewVal() == 11) {
-        Serial2.print("bluetooth");
-      }
-      if (activeID->getNewVal() == 12) {
-        Serial2.print("pcusb");
-      }
-      //////////////////////////////////////////////////////
-
-      Serial2.print("!");  //Applying command with termination mark
+      if (activeID->getNewVal() == 1) {comInput=1;sending=1;rs232send();}
+      if (activeID->getNewVal() == 2) {comInput=2;sending=1;rs232send();}
+      if (activeID->getNewVal() == 3) {comInput=3;sending=1;rs232send();}
+      if (activeID->getNewVal() == 4) {comInput=4;sending=1;rs232send();}
+      if (activeID->getNewVal() == 5) {comInput=5;sending=1;rs232send();}
+      if (activeID->getNewVal() == 6) {comInput=6;sending=1;rs232send();}
+      if (activeID->getNewVal() == 7) {comInput=7;sending=1;rs232send();}
+      if (activeID->getNewVal() == 8) {comInput=8;sending=1;rs232send();}
+      if (activeID->getNewVal() == 9) {comInput=9;sending=1;rs232send();}
+      if (activeID->getNewVal() == 10) {comInput=10;sending=1;rs232send();}
+      if (activeID->getNewVal() == 11) {comInput=11;sending=1;rs232send();}
+      if (activeID->getNewVal() == 12) {comInput=12;sending=1;rs232send();}
     }
     return (true);
   }
 
+
+
 void loop() { //for updating status
-  if (millis() - previousMillis >= interval) {
-    previousMillis = millis(); // Update the last action time
-    Serial.println("past 5s");
-    Serial2.print("!power?!");
-    delay(100);
-    if (Serial2.available() > 0) {
-      String responsePower = Serial2.readStringUntil('$'); // Read the RS232 response until the terminating "$" character
-      if (responsePower.length() > 0) {
-        Serial.println("Received RS232 power update: " + responsePower);
 
-        if (responsePower.indexOf("power=") != -1) {
-          bool newPower = (responsePower.indexOf("power=on") != -1); // Check if the response contains "power=on"
-          if (newPower != power) { //detecting a change
-            power = newPower;
-            active->setVal(power ? 1 : 0); // Set the value to 1 for ON and 0 for OFF
-          }
-        }
-      }
-    }
-    delay(100);
-    Serial2.print("!source?!");
-    delay(100);
-    if (Serial2.available() > 0) {
-      String responseSource = Serial2.readStringUntil('$'); // Read the RS232 response until the terminating "$" character
-      if (responseSource.length() > 0) {
-        Serial.println("Received RS232 source update: " + responseSource);
-        int newInput = 0;
-        if (responseSource.indexOf("source=") != -1) {
-
-          //////////////List of inputs
-          if(responseSource == "source=cd") {newInput=1;}
-          if(responseSource == "source=coax1") {newInput=2;} 
-          if(responseSource == "source=coax2") {newInput=3;} 
-          if(responseSource == "source=opt1") {newInput=4;} 
-          if(responseSource == "source=opt2") {newInput=5;} 
-          if(responseSource == "source=aux1") {newInput=6;} 
-          if(responseSource == "source=aux2") {newInput=7;} 
-          if(responseSource == "source=tuner") {newInput=8;} 
-          if(responseSource == "source=phono") {newInput=9;} 
-          if(responseSource == "source=usb") {newInput=10;} 
-          if(responseSource == "source=bluetooth") {newInput=11;} 
-          if(responseSource == "source=pc_usb") {newInput=12;} 
-          //////////////
-
-
-          if (newInput != input) {
-            input = newInput;
-            activeID->setVal(input); // Set the new input
-          }
-        }
-      }
-    }
+  if((comPower != power ) || (active->timeVal()>60000)){                               // check time elapsed since last update and proceed only if greater than 5 seconds
+    receiving = 1;
+    rs232receive();
+    active->setVal(comPower); // Set power state
+    LOG1("Reading and applying new power state");
+    LOG1("\n");
+    power = comPower;
   }
+  if((comInput != input ) || (activeID->timeVal()>60000)){                               // check time elapsed since last update and proceed only if greater than 5 seconds
+    receiving = 1;
+    rs232receive();
+    activeID->setVal(comInput); // Set power state
+    LOG1("\n");
+    LOG1("Reading and applying new source");
+    LOG1("\n");
+    input = comInput;
+  }
+
 }
 
 };
+
+struct Volume : Service::LightBulb {       // Volume
+
+  //SpanCharacteristic *power;
+  SpanCharacteristic *level;
+  
+  Volume(int pin) : Service::LightBulb(){
+
+    //power=new Characteristic::On();     
+                
+    level=new Characteristic::Brightness(25);
+    level->setRange(0,100,1);
+
+    
+  }
+
+  boolean update(){                              // update() method
+    if (level->updated()) {  //Applying Volume
+      if (comVolume>0) {
+        comInput=151;
+        rs232send();
+        comInput=150;
+        rs232send;
+      } else {
+      comInput=152;
+      rs232send();
+      }   
+    return(true);                               // return true
+    } // update
+  };
+
+void loop() { //for updating status
+
+  if((comVolume != volume ) || (level->timeVal()>60000)){                               // check time elapsed since last update and proceed only if greater than 5 seconds
+    receiving = 1;
+    rs232receive();
+    level->setVal(comVolume); // Set power state
+    LOG1("\n");
+    LOG1("Reading and applying new Volume");
+    LOG1("\n");
+    volume = comVolume;
+  }
+
+
+}
+
+
+};
+
 
 
 
@@ -161,7 +268,8 @@ void setup() {
   Serial.begin(115200);
   Serial2.begin(115200, SERIAL_8N1);  // start Serial2 at 115200 8N1
 
-  //homeSpan.enableOTA();
+
+  homeSpan.enableOTA();
   homeSpan.begin(Category::Television, "Rotel A12MKII Ampplifier");
 
   SPAN_ACCESSORY();
@@ -172,86 +280,86 @@ void setup() {
   SpanService *hdmi1 = new Service::InputSource();
   new Characteristic::ConfiguredName("CD");
   new Characteristic::Identifier(1);
-  new Characteristic::IsConfigured(1);            // Source included in the Settings Screen...
-  new Characteristic::CurrentVisibilityState(0);  // ...and included in the Selection List...
-  new Characteristic::TargetVisibilityState(0);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
+  new Characteristic::IsConfigured(1,true);            // Source included in the Settings Screen...
+  new Characteristic::CurrentVisibilityState(0,true);  // ...and included in the Selection List...
+  new Characteristic::TargetVisibilityState(0,true);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
 
   SpanService *hdmi2 = new Service::InputSource();
   new Characteristic::ConfiguredName("Coaxial 1");
   new Characteristic::Identifier(2);
-  new Characteristic::IsConfigured(1);            // Source included in the Settings Screen...
-  new Characteristic::CurrentVisibilityState(0);  // ...and included in the Selection List...
-  new Characteristic::TargetVisibilityState(0);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
+  new Characteristic::IsConfigured(1,true);            // Source included in the Settings Screen...
+  new Characteristic::CurrentVisibilityState(0,true);  // ...and included in the Selection List...
+  new Characteristic::TargetVisibilityState(0,true);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
 
   SpanService *hdmi3 = new Service::InputSource();
   new Characteristic::ConfiguredName("Coaxial 2");
   new Characteristic::Identifier(3);
-  new Characteristic::IsConfigured(1);            // Source included in the Settings Screen...
-  new Characteristic::CurrentVisibilityState(0);  // ...and included in the Selection List...
-  new Characteristic::TargetVisibilityState(0);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
+  new Characteristic::IsConfigured(1,true);            // Source included in the Settings Screen...
+  new Characteristic::CurrentVisibilityState(0,true);  // ...and included in the Selection List...
+  new Characteristic::TargetVisibilityState(0,true);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
 
   SpanService *hdmi4 = new Service::InputSource();
   new Characteristic::ConfiguredName("Optical 1");
   new Characteristic::Identifier(4);
-  new Characteristic::IsConfigured(1);            // Source included in the Settings Screen...
-  new Characteristic::CurrentVisibilityState(0);  // ...and included in the Selection List...
-  new Characteristic::TargetVisibilityState(0);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
+  new Characteristic::IsConfigured(1,true);            // Source included in the Settings Screen...
+  new Characteristic::CurrentVisibilityState(0,true);  // ...and included in the Selection List...
+  new Characteristic::TargetVisibilityState(0,true);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
 
   SpanService *hdmi5 = new Service::InputSource();
   new Characteristic::ConfiguredName("Optical 2");
   new Characteristic::Identifier(5);
-  new Characteristic::IsConfigured(1);            // Source included in the Settings Screen...
-  new Characteristic::CurrentVisibilityState(0);  // ...and included in the Selection List...
-  new Characteristic::TargetVisibilityState(0);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
+  new Characteristic::IsConfigured(1,true);            // Source included in the Settings Screen...
+  new Characteristic::CurrentVisibilityState(0,true);  // ...and included in the Selection List...
+  new Characteristic::TargetVisibilityState(0,true);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
 
   SpanService *hdmi6 = new Service::InputSource();
   new Characteristic::ConfiguredName("Auxiliary 1");
   new Characteristic::Identifier(6);
-  new Characteristic::IsConfigured(1);            // Source included in the Settings Screen...
-  new Characteristic::CurrentVisibilityState(0);  // ...and included in the Selection List...
-  new Characteristic::TargetVisibilityState(0);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
+  new Characteristic::IsConfigured(1,true);            // Source included in the Settings Screen...
+  new Characteristic::CurrentVisibilityState(0,true);  // ...and included in the Selection List...
+  new Characteristic::TargetVisibilityState(0,true);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
 
   SpanService *hdmi7 = new Service::InputSource();
   new Characteristic::ConfiguredName("Auxiliary 2");
   new Characteristic::Identifier(7);
-  new Characteristic::IsConfigured(1);            // Source included in the Settings Screen...
-  new Characteristic::CurrentVisibilityState(0);  // ...and included in the Selection List...
-  new Characteristic::TargetVisibilityState(0);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
+  new Characteristic::IsConfigured(1,true);            // Source included in the Settings Screen...
+  new Characteristic::CurrentVisibilityState(0,true);  // ...and included in the Selection List...
+  new Characteristic::TargetVisibilityState(0,true);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
 
   SpanService *hdmi8 = new Service::InputSource();
   new Characteristic::ConfiguredName("Tuner");
   new Characteristic::Identifier(8);
-  new Characteristic::IsConfigured(1);            // Source included in the Settings Screen...
-  new Characteristic::CurrentVisibilityState(0);  // ...and included in the Selection List...
-  new Characteristic::TargetVisibilityState(0);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
+  new Characteristic::IsConfigured(1,true);            // Source included in the Settings Screen...
+  new Characteristic::CurrentVisibilityState(0,true);  // ...and included in the Selection List...
+  new Characteristic::TargetVisibilityState(0,true);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
 
   SpanService *hdmi9 = new Service::InputSource();
   new Characteristic::ConfiguredName("Phonograph");
   new Characteristic::Identifier(9);
-  new Characteristic::IsConfigured(1);            // Source included in the Settings Screen...
-  new Characteristic::CurrentVisibilityState(0);  // ...and included in the Selection List...
-  new Characteristic::TargetVisibilityState(0);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
+  new Characteristic::IsConfigured(1,true);            // Source included in the Settings Screen...
+  new Characteristic::CurrentVisibilityState(0,true);  // ...and included in the Selection List...
+  new Characteristic::TargetVisibilityState(0,true);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
 
   SpanService *hdmi10 = new Service::InputSource();
   new Characteristic::ConfiguredName("USB");
   new Characteristic::Identifier(10);
-  new Characteristic::IsConfigured(1);            // Source included in the Settings Screen...
-  new Characteristic::CurrentVisibilityState(0);  // ...and included in the Selection List...
-  new Characteristic::TargetVisibilityState(0);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
+  new Characteristic::IsConfigured(1,true);            // Source included in the Settings Screen...
+  new Characteristic::CurrentVisibilityState(0,true);  // ...and included in the Selection List...
+  new Characteristic::TargetVisibilityState(0,true);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
 
   SpanService *hdmi11 = new Service::InputSource();
   new Characteristic::ConfiguredName("Bluetooth");
   new Characteristic::Identifier(11);
-  new Characteristic::IsConfigured(1);            // Source included in the Settings Screen...
-  new Characteristic::CurrentVisibilityState(0);  // ...and included in the Selection List...
-  new Characteristic::TargetVisibilityState(0);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
+  new Characteristic::IsConfigured(1,true);            // Source included in the Settings Screen...
+  new Characteristic::CurrentVisibilityState(0,true);  // ...and included in the Selection List...
+  new Characteristic::TargetVisibilityState(0,true);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
 
   SpanService *hdmi12 = new Service::InputSource();
   new Characteristic::ConfiguredName("PC External DAC");
   new Characteristic::Identifier(12);
-  new Characteristic::IsConfigured(1);            // Source included in the Settings Screen...
-  new Characteristic::CurrentVisibilityState(0);  // ...and included in the Selection List...
-  new Characteristic::TargetVisibilityState(0);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
+  new Characteristic::IsConfigured(1,true);            // Source included in the Settings Screen...
+  new Characteristic::CurrentVisibilityState(0,true);  // ...and included in the Selection List...
+  new Characteristic::TargetVisibilityState(0,true);   // ...and a "checked" checkbox is provided on the Settings Screen that can be used to toggle CurrentVisibilityState()
 
 
 
@@ -275,4 +383,7 @@ void setup() {
 void loop() {
   homeSpan.poll();
 
+  rs232receive();
+
 }
+
