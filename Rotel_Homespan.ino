@@ -6,7 +6,7 @@ bool comPower = 0; //stores new requested power
 int input = 0;  //stores active input
 int comInput = 1;  //stores new requested input
 bool receiving = 0; //used for the communication function
-bool sending = 0; //used for the communication function
+int sending = 0; //used for the communication function
 int volume = 25; //stores active volume
 int comVolume = 25;  //stores new requested volume
 
@@ -42,13 +42,13 @@ void rs232send() {
       if (comInput == 11) {Serial2.print(statusAction+"bluetooth"+statusAction);}
       if (comInput == 12) {Serial2.print(statusAction+"pcusb"+statusAction);}
 
-      if (comInput == 100) {Serial2.print(statusAction+statusPowerSet+statusAction);Serial.println("sent command turning Amp On");}
-      if (comInput == 101) {Serial2.print(statusAction+statusPowerUnset+statusAction);Serial.println("sent command turning Amp Off");}
-
-      if (comInput == 150) {Serial2.print(statusAction+statusVolume+comVolume+statusAction);Serial.print("Applied volume is ");Serial.print(comVolume);Serial.println("%");}
-
       sending == 0;
   }
+    else if (sending == 2) {Serial2.print(statusAction+statusPowerSet+statusAction);Serial.println("sent command turning Amp On");sending == 0;}
+    else if (sending == 3) {Serial2.print(statusAction+statusPowerUnset+statusAction);Serial.println("sent command turning Amp Off");sending == 0;}
+    else if (sending == 4) {Serial2.print(statusAction+statusVolume+comVolume+statusAction);Serial.print("Applied volume is ");Serial.print(comVolume);Serial.println("%");sending == 0;}
+
+  
     else if (receiving == 1) {
 
       //asking power status
@@ -144,17 +144,17 @@ struct HomeSpanTV : Service::Television {
 
     if (active->updated()) {
       Serial.printf("Set TV Power to: %s\n", active->getNewVal() ? "ON" : "OFF");
-      LOG1("Updating AMP Power");
+      LOG0("Updating AMP Power");
       LOG1(":  Current Power=");
       LOG1(active->getVal() ? "ON" : "OFF");
-      LOG1("  New Power=");
-      LOG1(active->getNewVal() ? "ON" : "OFF");
-      LOG1("\n");
+      LOG0("  New Power=");
+      LOG0(active->getNewVal() ? "ON" : "OFF");
+      LOG0("\n");
 
       if (active->getNewVal()) {
-        {comInput=100;sending=1;power=1;rs232send();}
+        {sending=2;rs232send();comPower=1;}
       } else {
-        {comInput=101;sending=1;power=0;rs232send();}
+        {sending=3;rs232send();comPower=0;}
       }
     }
 
@@ -185,18 +185,21 @@ void loop() { //for updating status
 
   if((comPower != power ) || (active->timeVal()>60000)){                               // check time elapsed since last update and proceed only if greater than 5 seconds
     receiving = 1;
-    rs232receive();
+    rs232send();
     active->setVal(comPower); // Set power state
-    LOG1("Reading and applying new power state");
+    LOG1("\n");
+    LOG1("Reading and applying new power state : ");
+    LOG1(comPower);
     LOG1("\n");
     power = comPower;
   }
   if((comInput != input ) || (activeID->timeVal()>60000)){                               // check time elapsed since last update and proceed only if greater than 5 seconds
     receiving = 1;
-    rs232receive();
+    rs232send();
     activeID->setVal(comInput); // Set input state
     LOG1("\n");
-    LOG1("Reading and applying new source");
+    LOG1("Reading and applying new source : ");
+    LOG1(comInput);
     LOG1("\n");
     input = comInput;
   }
@@ -231,7 +234,7 @@ struct Volume : Service::LightBulb {       // Volume
   void loop() { //for updating status
     if((comVolume != volume ) || (level->timeVal()>60000)){                  // check time elapsed since last update and proceed only if greater than 5 seconds
       receiving = 1;
-      rs232receive();
+      rs232send();
       level->setVal(comVolume); // Set power state
       LOG1("\n");
       LOG1("Reading and applying new Volume");
@@ -359,6 +362,12 @@ void setup() {
     ->addLink(hdmi11)
     ->addLink(hdmi12)
     ;
+
+  receiving=1;
+  rs232send();
+  rs232receive();
+
+  
 }
   
 ///////////////////////////////
