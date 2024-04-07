@@ -125,7 +125,11 @@ struct HomeSpanTV : Service::Television {
   SpanCharacteristic *settingsKey = new Characteristic::PowerModeSelection();  // Adds "View TV Setting" option to Selection Screen
 
   HomeSpanTV(const char *name) : Service::Television() {
-    new Characteristic::ConfiguredName(name);  // Name of TV
+    new Characteristic::ConfiguredName("Audio Amplifier");  // Name of TV
+      new Characteristic::Manufacturer("Rotel");
+      new Characteristic::Model("A12 MKII");
+      new Characteristic::FirmwareRevision("0.1");
+
     Serial.printf("Configured TV: %s\n", name);
   }
 
