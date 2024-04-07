@@ -5,7 +5,7 @@ bool power = 1;  //power status
 bool comPower = 0; //stores new requested power
 int input = 0;  //stores active input
 int comInput = 1;  //stores new requested input
-bool receiving = 0; //used for the communication function
+int receiving = 0; //used for the communication function
 int sending = 0; //used for the communication function
 int volume = 25; //stores active volume
 int comVolume = 25;  //stores new requested volume
@@ -13,6 +13,8 @@ int comVolume = 25;  //stores new requested volume
 ///////////Status Commands/////////////
 String statusAction="!";
 String statusAsk="?";
+String statusEnd="$";
+String statusTypeSeparator="=";
 String statusPower="power";
 String statusPowerDetect="power";
 String statusPowerSet="power_on";
@@ -44,25 +46,14 @@ void rs232send() {
 
       sending == 0;
   }
-    else if (sending == 2) {Serial2.print(statusAction+statusPowerSet+statusAction);Serial.println("sent command turning Amp On");sending == 0;}
-    else if (sending == 3) {Serial2.print(statusAction+statusPowerUnset+statusAction);Serial.println("sent command turning Amp Off");sending == 0;}
-    else if (sending == 4) {Serial2.print(statusAction+statusVolume+comVolume+statusAction);Serial.print("Applied volume is ");Serial.print(comVolume);Serial.println("%");sending == 0;}
+  if (sending == 2) {Serial2.print(statusAction+statusPowerSet+statusAction);Serial.println("sent command turning Amp On");sending == 0;}
+  if (sending == 3) {Serial2.print(statusAction+statusPowerUnset+statusAction);Serial.println("sent command turning Amp Off");sending == 0;}
+  if (sending == 4) {Serial2.print(statusAction+statusVolume+comVolume+statusAction);Serial.print("Applied volume is ");Serial.print(comVolume);Serial.println("%");sending == 0;}
 
   
-    else if (receiving == 1) {
-
-      //asking power status
-      Serial2.print(statusAction+statusPower+statusAsk);
-
-      //asking input status
-      Serial2.print(statusAction+statusSource+statusAsk);
-
-      //asking Volume status
-      Serial2.print(statusAction+statusVolumeGet+statusAsk);
-
-
-      receiving = 0;
-  }
+  if (receiving == 1) {Serial2.print(statusAction+statusPower+statusAsk);receiving = 0;}  //asking power status
+  if (receiving == 2) {Serial2.print(statusAction+statusSource+statusAsk);receiving = 0;}  //asking input status
+  if (receiving == 3) {Serial2.print(statusAction+statusVolumeGet+statusAsk);receiving = 0;}  //asking Volume status
 }
 
 void rs232receive(){
@@ -71,7 +62,6 @@ void rs232receive(){
   String receivedData;
   //LOG2("\nreading\n");
   while (Serial2.available()) {
-    LOG2("\nreading\n");
     char c = Serial2.read();
     if (c == '$') { //detected end of transmission
 
@@ -152,9 +142,9 @@ struct HomeSpanTV : Service::Television {
       LOG0("\n");
 
       if (active->getNewVal()) {
-        {sending=2;rs232send();comPower=1;}
+        {sending=2;comPower=1;power=1;rs232send();}
       } else {
-        {sending=3;rs232send();comPower=0;}
+        {sending=3;comPower=0;power=0;rs232send();}
       }
     }
 
@@ -184,23 +174,28 @@ struct HomeSpanTV : Service::Television {
 void loop() { //for updating status
 
   if((comPower != power ) || (active->timeVal()>60000)){                               // check time elapsed since last update and proceed only if greater than 5 seconds
-    receiving = 1;
-    rs232send();
+    if (active->timeVal()>60000) {
+      receiving = 1;
+      rs232send();
+      Serial.println("sent power status request");
+    }
+    LOG0("\n");
+    LOG0("Reading and applying new power state : ");
+    LOG0(comPower);
+    LOG0("\n");
     active->setVal(comPower); // Set power state
-    LOG1("\n");
-    LOG1("Reading and applying new power state : ");
-    LOG1(comPower);
-    LOG1("\n");
     power = comPower;
   }
   if((comInput != input ) || (activeID->timeVal()>60000)){                               // check time elapsed since last update and proceed only if greater than 5 seconds
-    receiving = 1;
-    rs232send();
+    if (activeID->timeVal()>60000) {
+      receiving = 2;
+      rs232send();
+    }
+    LOG0("\n");
+    LOG0("Reading and applying new source : |");
+    LOG0(comInput);
+    LOG0("|\n");
     activeID->setVal(comInput); // Set input state
-    LOG1("\n");
-    LOG1("Reading and applying new source : ");
-    LOG1(comInput);
-    LOG1("\n");
     input = comInput;
   }
 
@@ -225,16 +220,18 @@ struct Volume : Service::LightBulb {       // Volume
 
   boolean update(){                              // update() method
     if (level->updated()) {  //Applying Volume
-        comInput=150;
-        rs232send;
+        sending=3;
+        rs232send();
       }   
     return(true);                               // return true
   };
 
   void loop() { //for updating status
     if((comVolume != volume ) || (level->timeVal()>60000)){                  // check time elapsed since last update and proceed only if greater than 5 seconds
-      receiving = 1;
+    if (level->timeVal()>60000) {
+      receiving = 3;
       rs232send();
+    }
       level->setVal(comVolume); // Set power state
       LOG1("\n");
       LOG1("Reading and applying new Volume");
