@@ -97,14 +97,13 @@ void rs232receive(){
       }
       // Clear receivedData for the next message
       LOG1("\n");
-      LOG1("received full message ");
-      LOG1("\n");
+      LOG1("received full message : ");
       LOG1(receivedType);
       LOG1(" = ");
       LOG1(receivedData);
-      LOG1("\ncomInput is now :");
-      LOG1(comInput);
-      ;receivedData = "";
+      LOG1("\n");
+      receivedData = "";
+      receivedType = "";
     }
 
     } else {
@@ -179,8 +178,7 @@ void loop() { //for updating status
       rs232send();
       Serial.println("sent power status request");
     }
-    LOG0("\n");
-    LOG0("Reading and applying new power state : ");
+    LOG0("\nReading and applying new power state : ");
     LOG0(comPower);
     LOG0("\n");
     active->setVal(comPower); // Set power state
@@ -191,10 +189,9 @@ void loop() { //for updating status
       receiving = 2;
       rs232send();
     }
-    LOG0("\n");
-    LOG0("Reading and applying new source : |");
+    LOG0("\nReading and applying new source : ");
     LOG0(comInput);
-    LOG0("|\n");
+    LOG0("\n");
     activeID->setVal(comInput); // Set input state
     input = comInput;
   }
