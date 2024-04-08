@@ -1,5 +1,5 @@
 # Rotel-A12MKII-Homekit
-Adding Rotel A12MKII Amplifier to HomeKit using an ESP32 and Homespan.
+Adding Rotel A12MKII Amplifier to HomeKit using an ESP32 and Homespan over RS232.
 Works also for Rotel A14, A14MKII, and A12.
 
 
