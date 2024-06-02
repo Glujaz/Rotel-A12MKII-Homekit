@@ -34,7 +34,7 @@ You will also require an ESP32
  
 <h2 id="started">🚀 Getting started</h2>
 
-Download the 4 files located inside the Rotel-Homespan folder and open it inside the Arduino IDE.
+Download the 4 files located inside the [Rotel-Homespan](https://github.com/Glujaz/Rotel-A12MKII-Homekit/tree/main/Rotel-Homespan) folder and open it inside the Arduino IDE.
 
 Connect the ESP32 to you computer and load it in !
 
