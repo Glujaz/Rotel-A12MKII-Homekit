@@ -10,7 +10,7 @@
 </p>
 
 
-<p align="center">This project is to add the Rotel A12MKII Amplifier to HomeKit using an ESP32 and Homespan over RS232.
+<p align="center">This project is used to add the Rotel A12MKII Amplifier to HomeKit using an ESP32 and Homespan over RS232.
 Works also for Rotel A14, A14MKII, and A12.</p>
 
 
